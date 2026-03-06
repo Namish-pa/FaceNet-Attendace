@@ -1,27 +1,49 @@
 import cv2
-import numpy as n
-import face_recognition
+import numpy as np
+import mediapipe as mp
 import os
 from datetime import datetime as d
 
+# MediaPipe face detection setup
+mp_face_detection = mp.solutions.face_detection
+mp_drawing = mp.solutions.drawing_utils
 
 path='Images'
 imgs=[]
 classNames=[]
+known_faces = {}
+
 l=os.listdir(path)
 print(l)
-for i in l:
-    curimg=cv2.imread(f'{path}/{i}')
-    imgs.append(curimg)
-    classNames.append(os.path.splitext(i)[0])
+
+# Load images and train face recognition
+recognizer = cv2.face.LBPHFaceRecognizer_create()
+trained_images = []
+trained_labels = []
+label_map = {}
+
+for idx, i in enumerate(l):
+    img_path = f'{path}/{i}'
+    if os.path.isfile(img_path):
+        curimg = cv2.imread(img_path)
+        if curimg is not None:
+            gray = cv2.cvtColor(curimg, cv2.COLOR_BGR2GRAY)
+            trained_images.append(gray)
+            class_name = os.path.splitext(i)[0]
+            trained_labels.append(idx)
+            label_map[idx] = class_name
+            classNames.append(class_name)
+            print(f'Loaded: {class_name}')
+
 print(classNames)
-def findEncode(imgs):
-    encodel=[]
-    for i in imgs:
-        i=cv2.cvtColor(i,cv2.COLOR_BGR2RGB)
-        encode=face_recognition.face_encodings(i)[0]
-        encodel.append(encode)
-    return encodel
+
+# Train the recognizer
+if trained_images:
+    recognizer.train(trained_images, np.array(trained_labels))
+    print('Training complete!')
+else:
+    print('No images found in Images folder')
+
 def attendence(name):
     f=open('Attendence.csv','r+')
     namelisto=[]
@@ -35,36 +57,60 @@ def attendence(name):
         date=t.strftime('%d/%b/%Y')
         f.writelines(f'\n{name},{time},{date}')
 
-encodeKnown=findEncode(imgs)
-print('Done!')   #SHOWS ENCODINGS ARE FINISHED
+print('Done!')   #SHOWS TRAINING ARE FINISHED
 
 cam=cv2.VideoCapture(0)
-while True:
-    success,img=cam.read()
-    imgS=cv2.resize(img,(0,0),None,0.25,0.25)
-    imgS=cv2.cvtColor(imgS,cv2.COLOR_BGR2RGB)
-    faceInCurrentFrame=face_recognition.face_locations(imgS)
-    encodeCurFrame=face_recognition.face_encodings(imgS,faceInCurrentFrame)
 
-    for enf,faceloca in zip(encodeCurFrame,faceInCurrentFrame):
-        matches=face_recognition.compare_faces(encodeKnown,enf)
-        facedistace=face_recognition.face_distance(encodeKnown,enf)
-        #print(facedistace)
-        matchIndex=n.argmin(facedistace)
+with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.5) as face_detection:
+    while True:
+        success, img = cam.read()
+        if not success:
+            break
+        
+        h, w, c = img.shape
+        imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        results = face_detection.process(imgRGB)
+        
+        if results.detections:
+            for detection in results.detections:
+                bboxC = detection.location_data.relative_bounding_box
+                x1 = int(bboxC.xmin * w)
+                y1 = int(bboxC.ymin * h)
+                x2 = int((bboxC.xmin + bboxC.width) * w)
+                y2 = int((bboxC.ymin + bboxC.height) * h)
+                
+                # Ensure coordinates are within bounds
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(w, x2), min(h, y2)
+                
+                # Extract face region
+                face_roi = img[y1:y2, x1:x2]
+                if face_roi.size > 0:
+                    gray_roi = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+                    gray_roi = cv2.resize(gray_roi, (200, 200))
+                    
+                    # Recognize face using LBPH
+                    label, confidence = recognizer.predict(gray_roi)
+                    
+                    # If confidence is low (below 70), it's a recognized face
+                    if confidence < 70 and label in label_map:
+                        name = label_map[label].upper()
+                        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.putText(img, f'{name} ({int(confidence)})', (x1, y1-10), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
+                        attendence(name)
+                    else:
+                        # Unknown face
+                        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                        cv2.putText(img, 'Unknown', (x1, y1-10), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+        
+        cv2.imshow('Webcam', img)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
-
-        if matches[matchIndex]:
-            name=classNames[matchIndex].upper()
-            #print(name)
-            a1,a2,a3,a4=faceloca
-            a1, a2, a3, a4=a1*4,a2*4,a3*4,a4*4
-            cv2.rectangle(img,(a4,a1),(a2,a3),(0,255,0),2)
-            cv2.putText(img,name,(a4+6,a1-6),cv2.FONT_HERSHEY_COMPLEX,1,(255,255,255),2)
-            attendence(name)
-
-
-    cv2.imshow('Webcam',img)
-    cv2.waitKey(1)
+cam.release()
+cv2.destroyAllWindows()
 
 
 
