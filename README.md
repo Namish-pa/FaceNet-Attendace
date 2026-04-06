@@ -15,11 +15,22 @@ This project is a computer vision-based attendance system using a pre-trained Fa
 
 ## How to use
 
-1. Set up a Python environment and install the required dependencies:
+1. **Create and activate a virtual environment**:
    ```bash
-   pip install opencv-python torch torchvision mediapipe facenet-pytorch scikit-learn
+   # Create venv
+   python -m venv venv
+
+   # Activate venv (Windows)
+   .\venv\Scripts\activate
+
+   # Activate venv (macOS/Linux)
+   source venv/bin/activate
    ```
-2. Place pictures of the people you want to recognize in the `Images/` folder. Use subfolders for each person's name (e.g., `Images/Namish/pic1.jpg`).
-3. Run `python train_embeddings.py` to process those images and save their embeddings locally.
-4. Run `python facenet_attendance.py` to launch the live facial recognition tracker using your webcam.
-5. Press `q` to quit the webcam application.
+2. **Install the required dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Place pictures of the people you want to recognize in the `Images/` folder. Use subfolders for each person's name (e.g., `Images/Person_Name/pic1.jpg`).
+4. Run `python train_embeddings.py` to process those images and save their embeddings locally.
+5. Run `python facenet_attendance.py` to launch the live facial recognition tracker using your webcam.
+6. Press `q` to quit the webcam application.

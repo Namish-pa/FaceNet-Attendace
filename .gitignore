@@ -6,3 +6,7 @@ Images/
 Attendence.csv
 test/
 test.py
+.idea/
+Attedance.csv
+Attendance.csv
+embeddings.pickle
